@@ -1,0 +1,59 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  name: dev-agentpool
+
+variables:
+- group: ai-agent-system   # contains ACR, AKS, OPENAI keys, etc.
+
+stages:
+- stage: Test
+  jobs:
+  - job: UnitTests
+    steps:
+    - checkout: self
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.11'
+
+    - script: |
+        pip install -r requirements.txt
+        pytest -q
+      displayName: Run tests
+
+- stage: BuildAndPush
+  dependsOn: Test
+  jobs:
+  - job: Build
+    steps:
+    - checkout: self
+
+    - task: Docker@2
+      displayName: Build and push image
+      inputs:
+        containerRegistry: '$(ACR_SERVICE_CONNECTION)'
+        repository: '$(ACR_REPO)'
+        command: 'buildAndPush'
+        Dockerfile: 'Dockerfile'
+        tags: |
+          $(Build.BuildId)
+
+- stage: Deploy
+  dependsOn: BuildAndPush
+  jobs:
+  - job: DeployToAKS
+    steps:
+    - task: Kubernetes@1
+      displayName: Deploy to AKS
+      inputs:
+        connectionType: 'Azure Resource Manager'
+        azureSubscriptionEndpoint: '$(AKS_SERVICE_CONNECTION)'
+        azureResourceGroup: '$(AKS_RESOURCE_GROUP)'
+        kubernetesCluster: '$(AKS_CLUSTER_NAME)'
+        command: 'apply'
+        useConfigurationFile: true
+        configuration: 'k8s/deployment.yaml'
