@@ -40,8 +40,10 @@ def build_graph():
     graph.add_edge("research", "execute")
     graph.add_edge("execute", END)
 
-    checkpointer = MemorySaver()
-    return graph.compile(checkpointer=checkpointer)
+    return graph.compile()
+
+    # checkpointer = MemorySaver()
+    # return graph.compile(checkpointer=checkpointer)
 
 
 graph_app = build_graph()
